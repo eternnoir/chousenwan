@@ -3,10 +3,12 @@ from typing import Optional
 
 class CreateSessionResponse(BaseModel):
     session_id: str
+    token: Optional[str] = None
 
 class ChatRequest(BaseModel):
     message: str
     stream: Optional[bool] = False
+    token: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str

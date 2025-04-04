@@ -2,7 +2,7 @@ import os
 import asyncio
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Header
 from fastapi.responses import StreamingResponse
 
 from agents import Runner
@@ -13,6 +13,7 @@ from agents.run_context import RunContextWrapper
 from .agent_config import triage_agent
 from .session_manager import SessionManager
 from .schemas import CreateSessionResponse, ChatRequest, ChatResponse
+from .auth import generate_token, validate_token
 
 
 app = FastAPI(title="Multi-Agent Conversation API")
@@ -25,6 +26,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     print("警告：未設定 OPENAI_API_KEY，請先在環境變數中設定。")
 
+API_SECRET = os.getenv("API_SECRET")
+if not API_SECRET:
+    print("警告：未設定 API_SECRET，API 將不會進行 token 驗證。")
+
 
 @app.post("/sessions", response_model=CreateSessionResponse)
 def create_session():
@@ -32,16 +37,31 @@ def create_session():
     建立一個新的對話 Session，並回傳 session_id。
     """
     session_id = session_manager.create_session(initial_agent=triage_agent)
-    return CreateSessionResponse(session_id=session_id)
+    token = generate_token(session_id)
+    return CreateSessionResponse(session_id=session_id, token=token)
 
 
 @app.post("/sessions/{session_id}/chat")
-async def chat_with_agent(session_id: str, request: ChatRequest):
+async def chat_with_agent(
+    session_id: str, 
+    request: ChatRequest, 
+    authorization: str = Header(None)
+):
     """
     與對話 Session 進行互動，並得到 AI 回覆。
     - message: 使用者輸入
     - stream: 是否以串流方式回應 (Server-Sent Events)
+    - authorization: 驗證 token (HTTP Header)
     """
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "")
+    else:
+        token = request.token
+        
+    if API_SECRET and not validate_token(session_id, token or ""):
+        raise HTTPException(status_code=401, detail="無效的 token。")
+        
     # 取得 Session
     try:
         session_state = session_manager.get_session(session_id)
@@ -111,7 +131,7 @@ async def _stream_response(
     # 最終完整資料
     # 更新 session 狀態
     new_history = run_result_streamed.to_input_list()
-    session_manager.update_session(session_id, new_history, result.last_agent)
+    session_manager.update_session(session_id, new_history, run_result_streamed.last_agent)
 
 
 #
