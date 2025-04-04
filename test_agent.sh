@@ -5,6 +5,18 @@ BASE_URL="${1:-http://127.0.0.1:8000}"
 echo "使用 API 伺服器地址: $BASE_URL"
 # -------------------------------------------------
 
+if [ -n "$(lsof -i:8000 -t)" ]; then
+  echo "關閉已存在的伺服器進程..."
+  kill -9 $(lsof -i:8000 -t)
+  sleep 1
+fi
+
+if [ -n "$(lsof -i:8001 -t)" ]; then
+  echo "關閉已存在的伺服器進程..."
+  kill -9 $(lsof -i:8001 -t)
+  sleep 1
+fi
+
 echo "==== 1) 建立新 Session ===="
 SESSION_JSON=$(curl -s -X POST "${BASE_URL}/sessions" -H "Content-Type: application/json")
 echo "Session creation response: $SESSION_JSON"
@@ -25,7 +37,8 @@ echo "==== 2) 對此 Session 發送訊息 - 一次回覆 ===="
 # 傳送「請幫我算 2 + 3」這句話給 Agent
 NON_STREAM_RESP=$(curl -s -X POST "${BASE_URL}/sessions/${SESSION_ID}/chat" \
                     -H "Content-Type: application/json" \
-                    -d '{"message": "請幫我算 2 + 3", "token": "'"$TOKEN"'"}')
+                    -H "Authorization: Bearer ${TOKEN}" \
+                    -d '{"message": "請幫我算 2 + 3"}')
 
 echo "API 回傳："
 echo "$NON_STREAM_RESP"
@@ -36,7 +49,8 @@ echo "==== 3) 再發送另一句訊息 - 一次回覆 ===="
 # 傳送「現在幾點了？」到同一個 Session
 NON_STREAM_RESP2=$(curl -s -X POST "${BASE_URL}/sessions/${SESSION_ID}/chat" \
                      -H "Content-Type: application/json" \
-                     -d '{"message": "現在幾點了？", "token": "'"$TOKEN"'"}')
+                     -H "Authorization: Bearer ${TOKEN}" \
+                     -d '{"message": "現在幾點了？"}')
 
 echo "API 回傳："
 echo "$NON_STREAM_RESP2"
@@ -48,7 +62,8 @@ echo "以下將以 SSE (Server-Sent Events) 方式回傳多筆 data："
 # 使用 -N 參數讓 curl 即時輸出接收到的資料
 curl -N -X POST "${BASE_URL}/sessions/${SESSION_ID}/chat" \
      -H "Content-Type: application/json" \
-     -d '{"message": "測試串流回覆，幫我講個笑話吧", "stream": true, "token": "'"$TOKEN"'"}'
+     -H "Authorization: Bearer ${TOKEN}" \
+     -d '{"message": "測試串流回覆，幫我講個笑話吧", "stream": true}'
 
 echo
 echo "==== 結束 ===="

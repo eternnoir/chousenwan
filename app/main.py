@@ -2,7 +2,7 @@ import os
 import asyncio
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Header
 from fastapi.responses import StreamingResponse
 
 from agents import Runner
@@ -42,14 +42,24 @@ def create_session():
 
 
 @app.post("/sessions/{session_id}/chat")
-async def chat_with_agent(session_id: str, request: ChatRequest):
+async def chat_with_agent(
+    session_id: str, 
+    request: ChatRequest, 
+    authorization: str = Header(None)
+):
     """
     與對話 Session 進行互動，並得到 AI 回覆。
     - message: 使用者輸入
     - stream: 是否以串流方式回應 (Server-Sent Events)
-    - token: 驗證 token
+    - authorization: 驗證 token (HTTP Header)
     """
-    if API_SECRET and not validate_token(session_id, request.token or ""):
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.replace("Bearer ", "")
+    else:
+        token = request.token
+        
+    if API_SECRET and not validate_token(session_id, token or ""):
         raise HTTPException(status_code=401, detail="無效的 token。")
         
     # 取得 Session
