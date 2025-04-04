@@ -5,15 +5,24 @@ BASE_URL="${1:-http://127.0.0.1:8000}"
 echo "使用 API 伺服器地址: $BASE_URL"
 # -------------------------------------------------
 
-if [ -n "$(lsof -i:8000 -t)" ]; then
-  echo "關閉已存在的伺服器進程..."
-  kill -9 $(lsof -i:8000 -t)
+PORT=$(echo $BASE_URL | sed -n 's/.*:\([0-9]\+\).*/\1/p')
+if [ -z "$PORT" ]; then
+  if [[ $BASE_URL == https://* ]]; then
+    PORT=443
+  else
+    PORT=80
+  fi
+fi
+
+if [ "$PORT" != "8000" ] && [ -n "$(lsof -i:8000 -t 2>/dev/null)" ]; then
+  echo "關閉端口 8000 的伺服器進程..."
+  kill -9 $(lsof -i:8000 -t) 2>/dev/null
   sleep 1
 fi
 
-if [ -n "$(lsof -i:8001 -t)" ]; then
-  echo "關閉已存在的伺服器進程..."
-  kill -9 $(lsof -i:8001 -t)
+if [ "$PORT" != "8001" ] && [ -n "$(lsof -i:8001 -t 2>/dev/null)" ]; then
+  echo "關閉端口 8001 的伺服器進程..."
+  kill -9 $(lsof -i:8001 -t) 2>/dev/null
   sleep 1
 fi
 
